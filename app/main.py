@@ -170,12 +170,6 @@ def load_skill_body(skill_name, arguments=""):
 
 
 def resolve_prompt(prompt):
-    """
-    Expand consecutive skill invocations at the beginning of a prompt.
-
-    Every expanded skill receives the same remaining argument text.
-    Expansion stops at the first token that isn't a valid skill.
-    """
     if not prompt.startswith("/"):
         return None
 
@@ -202,13 +196,12 @@ def resolve_prompt(prompt):
         return None
 
     arguments = " ".join(tokens[index:])
+    positional_arguments = arguments.split()
 
     resolved_prompts = []
 
     for skill_body in expanded_skills:
-        skill_arguments = arguments.split()
-
-        for arg_index, argument in enumerate(skill_arguments):
+        for arg_index, argument in enumerate(positional_arguments):
             skill_body = skill_body.replace(
                 f"$ARGUMENTS[{arg_index}]",
                 argument,
@@ -216,7 +209,7 @@ def resolve_prompt(prompt):
 
         skill_body = skill_body.replace("$ARGUMENTS", arguments)
 
-        for arg_index, argument in enumerate(skill_arguments):
+        for arg_index, argument in enumerate(positional_arguments):
             skill_body = skill_body.replace(
                 f"${arg_index}",
                 argument,
