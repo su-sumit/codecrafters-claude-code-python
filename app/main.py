@@ -126,44 +126,42 @@ def build_system_prompt(skills):
     return prompt
 
 
-def load_skill_body(skill_name, arguments=""):
-
+def load_skill_body(skill_name):
     skills_dir = Path(".claude/skills").resolve()
-
     skill_path = (skills_dir / skill_name / "SKILL.md").resolve()
 
     if not skill_path.is_relative_to(skills_dir):
-
         return f"Error: Invalid skill name: {skill_name}"
 
     if not skill_path.is_file():
-
         return f"Error: Skill '{skill_name}' not found."
 
     content = skill_path.read_text(encoding="utf-8")
 
     if not content.startswith("---"):
-
         return f"Error: Skill '{skill_name}' has invalid frontmatter."
 
     parts = content.split("---", 2)
 
     if len(parts) < 3:
-
         return f"Error: Skill '{skill_name}' has invalid frontmatter."
 
-    body = parts[2].strip()
+    # Return the raw body. Do not substitute arguments here.
+    return parts[2].strip()
 
-    arguments_list = arguments.split()
 
-    for index, argument in enumerate(arguments_list):
+def substitute_skill_arguments(body, arguments):
+    positional_arguments = arguments.split()
 
+    # Replace indexed placeholders first, e.g. $ARGUMENTS[0].
+    for index, argument in enumerate(positional_arguments):
         body = body.replace(f"$ARGUMENTS[{index}]", argument)
 
+    # Replace the complete argument string.
     body = body.replace("$ARGUMENTS", arguments)
 
-    for index, argument in enumerate(arguments_list):
-
+    # Replace shorthand positional placeholders, e.g. $0.
+    for index, argument in enumerate(positional_arguments):
         body = body.replace(f"${index}", argument)
 
     return body
@@ -174,9 +172,12 @@ def resolve_prompt(prompt):
         return None
 
     tokens = prompt.split()
-    expanded_skills = []
+    known_skill_names = {skill["name"] for skill in discover_skills()}
+
+    skill_names = []
     index = 0
 
+    # Identify consecutive skill names at the beginning.
     while index < len(tokens):
         token = tokens[index]
 
@@ -184,36 +185,31 @@ def resolve_prompt(prompt):
             break
 
         skill_name = token[1:]
-        skill_body = load_skill_body(skill_name)
 
-        if skill_body is None:
+        if skill_name not in known_skill_names:
             break
 
-        expanded_skills.append(skill_body)
+        skill_names.append(skill_name)
         index += 1
 
-    if not expanded_skills:
+    if not skill_names:
         return None
 
+    # Everything after the skill names is shared argument text.
     arguments = " ".join(tokens[index:])
-    positional_arguments = arguments.split()
 
     resolved_prompts = []
 
-    for skill_body in expanded_skills:
-        for arg_index, argument in enumerate(positional_arguments):
-            skill_body = skill_body.replace(
-                f"$ARGUMENTS[{arg_index}]",
-                argument,
-            )
+    for skill_name in skill_names:
+        skill_body = load_skill_body(skill_name)
 
-        skill_body = skill_body.replace("$ARGUMENTS", arguments)
+        if skill_body.startswith("Error:"):
+            return [skill_body]
 
-        for arg_index, argument in enumerate(positional_arguments):
-            skill_body = skill_body.replace(
-                f"${arg_index}",
-                argument,
-            )
+        skill_body = substitute_skill_arguments(
+            skill_body,
+            arguments,
+        )
 
         resolved_prompts.append(skill_body)
 
