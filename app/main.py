@@ -147,7 +147,7 @@ def resolve_prompt(prompt):
     Expansion stops at the first token that isn't a valid skill.
     """
     if not prompt.startswith("/"):
-        return prompt
+        return None
 
     tokens = prompt.split()
     expanded_skills = []
