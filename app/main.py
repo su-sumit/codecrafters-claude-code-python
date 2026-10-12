@@ -53,12 +53,13 @@ def execute_tool(tool_call):
         return output
 
     elif name == "Skill":
-
         skill_name = arguments["name"]
-
         skill_arguments = arguments.get("args", "")
 
-        return load_skill_body(skill_name, skill_arguments)
+        body = load_skill_body(skill_name)
+        if body.startswith("Error:"):
+            return body
+        return substitute_skill_arguments(body, skill_arguments)
 
     elif name == "RunSkillScript":
         return run_skill_script(
@@ -114,14 +115,16 @@ def build_system_prompt(skills):
 
     prompt = "You have access to the following skills:\n"
 
-    for skill in skills:
+    if skills:
+        prompt += "You have access to the following skills:\n"
 
-        prompt += f"\n- {skill['name']}: {skill['description']}"
+        for skill in skills:
+            prompt += f"\n- {skill['name']}: {skill['description']}"
 
-    prompt += (
-        "\n\nIf a skill matches the user's request, call the Skill tool "
-        "with its name and follow the instructions it returns."
-    )
+        prompt += (
+            "\n\nIf a skill matches the user's request, call the Skill tool "
+            "with its name and follow the instructions it returns."
+        )
 
     return prompt
 
