@@ -269,7 +269,7 @@ def main():
 
     system_prompt = build_system_prompt(skills)
 
-    user_prompt = resolve_prompt(args.p)
+    resolved_prompts = resolve_prompt(args.p)
 
     messages = []
 
@@ -282,12 +282,25 @@ def main():
             }
         )
 
-    messages.append(
-        {
-            "role": "user",
-            "content": user_prompt,
-        }
-    )
+    if resolved_prompts is not None:
+
+        for resolved_prompt in resolved_prompts:
+
+            messages.append(
+                {
+                    "role": "user",
+                    "content": str(resolved_prompt),
+                }
+            )
+
+    else:
+
+        messages.append(
+            {
+                "role": "user",
+                "content": args.p,
+            }
+        )
 
     while True:
         chat = client.chat.completions.create(
