@@ -22,6 +22,14 @@ def execute_tool(tool_call):
         file_path = arguments["file_path"]
         return Path(file_path).read_text()
 
+    elif name == "Write":
+        file_path = arguments["file_path"]
+        content = arguments["content"]
+
+        Path(file_path).write_text(content)
+
+        return f"Successfully wrote to {file_path}"
+
     raise ValueError(f"Unknown tool: {name}")
 
 
