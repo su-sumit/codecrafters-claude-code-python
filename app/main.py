@@ -52,6 +52,14 @@ def execute_tool(tool_call):
 
         return output
 
+    elif name == "Skill":
+
+        skill_name = arguments["name"]
+
+        skill_arguments = arguments.get("args", "")
+
+        return load_skill_body(skill_name, skill_arguments)
+
     raise ValueError(f"Unknown tool: {name}")
 
 
@@ -96,47 +104,62 @@ def discover_skills():
 
 
 def build_system_prompt(skills):
-    if not skills:
-        return ""
 
     prompt = "You have access to the following skills:\n"
 
     for skill in skills:
+
         prompt += f"\n- {skill['name']}: {skill['description']}"
+
+    prompt += (
+        "\n\nIf a skill matches the user's request, call the Skill tool "
+        "with its name and follow the instructions it returns."
+    )
 
     return prompt
 
 
-def load_skill_body(skill_name):
-    """
+def load_skill_body(skill_name, arguments=""):
 
-    Load the instructions from a skill's SKILL.md file.
+    skills_dir = Path(".claude/skills").resolve()
 
-    The YAML frontmatter is excluded. Only the body after
+    skill_path = (skills_dir / skill_name / "SKILL.md").resolve()
 
-    the closing --- delimiter is returned.
+    if not skill_path.is_relative_to(skills_dir):
 
-    """
-
-    skill_path = Path(".claude") / "skills" / skill_name / "SKILL.md"
+        return f"Error: Invalid skill name: {skill_name}"
 
     if not skill_path.is_file():
 
-        return None
+        return f"Error: Skill '{skill_name}' not found."
 
     content = skill_path.read_text(encoding="utf-8")
 
     if not content.startswith("---"):
 
-        return None
+        return f"Error: Skill '{skill_name}' has invalid frontmatter."
 
     parts = content.split("---", 2)
 
     if len(parts) < 3:
 
-        return None
+        return f"Error: Skill '{skill_name}' has invalid frontmatter."
 
-    return parts[2].strip()
+    body = parts[2].strip()
+
+    arguments_list = arguments.split()
+
+    for index, argument in enumerate(arguments_list):
+
+        body = body.replace(f"$ARGUMENTS[{index}]", argument)
+
+    body = body.replace("$ARGUMENTS", arguments)
+
+    for index, argument in enumerate(arguments_list):
+
+        body = body.replace(f"${index}", argument)
+
+    return body
 
 
 def resolve_prompt(prompt):
@@ -259,6 +282,27 @@ def main():
                             "type": "string",
                             "description": "The command to execute",
                         }
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "Skill",
+                "description": "Load a skill's instructions into the conversation",
+                "parameters": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "The name of the skill to use",
+                        },
+                        "args": {
+                            "type": "string",
+                            "description": "Optional arguments for the skill",
+                        },
                     },
                 },
             },
