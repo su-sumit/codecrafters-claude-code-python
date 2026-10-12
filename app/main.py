@@ -11,6 +11,27 @@ API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
 
 
+def execute_tool(tool_call: dict) -> None:
+
+    function = tool_call["function"]
+
+    name = function["name"]
+
+    arguments = json.loads(function["arguments"])
+
+    if name == "Read":
+
+        file_path = arguments["file_path"]
+
+        contents = Path(file_path).read_text()
+
+        print(contents, end="")
+
+    else:
+
+        raise ValueError(f"Unknown tool: {name}")
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("-p", required=True)
@@ -51,6 +72,9 @@ def main():
     if not chat.choices or len(chat.choices) == 0:
         raise RuntimeError("no choices in response")
 
+    tool_call = chat.tool_calls[0]
+
+    execute_tool(tool_call)
     # You can use print statements as follows for debugging, they'll be visible when running tests.
     print("Logs from your program will appear here!", file=sys.stderr)
 
