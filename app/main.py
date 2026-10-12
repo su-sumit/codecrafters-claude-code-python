@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import subprocess
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -27,8 +28,27 @@ def execute_tool(tool_call):
         content = arguments["content"]
 
         Path(file_path).write_text(content)
-
         return f"Successfully wrote to {file_path}"
+
+    elif name == "Bash":
+        command = arguments["command"]
+
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+        )
+
+        output = result.stdout
+
+        if result.stderr:
+            output += result.stderr
+
+        if result.returncode != 0:
+            output += f"\nCommand exited with code {result.returncode}"
+
+        return output
 
     raise ValueError(f"Unknown tool: {name}")
 
@@ -79,6 +99,23 @@ def main():
                         },
                     },
                     "required": ["file_path", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "Bash",
+                "description": "Execute a shell command",
+                "parameters": {
+                    "type": "object",
+                    "required": ["command"],
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The command to execute",
+                        }
+                    },
                 },
             },
         },
