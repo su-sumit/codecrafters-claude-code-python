@@ -60,7 +60,28 @@ def main():
                     "required": ["file_path"],
                 },
             },
-        }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "Write",
+                "description": "Write content to a file, creating it if necessary or overwriting it if it exists",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "The path to the file to write",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "The complete content to write to the file",
+                        },
+                    },
+                    "required": ["file_path", "content"],
+                },
+            },
+        },
     ]
 
     messages = [{"role": "user", "content": args.p}]
