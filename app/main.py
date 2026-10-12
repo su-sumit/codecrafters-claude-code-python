@@ -55,7 +55,7 @@ def main():
         }
     ]
 
-        messages = [{"role": "user", "content": args.p}]
+    messages = [{"role": "user", "content": args.p}]
 
     while True:
         chat = client.chat.completions.create(
@@ -80,11 +80,13 @@ def main():
         for tool_call in message.tool_calls:
             result = execute_tool(tool_call)
 
-            messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": result,
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                }
+            )
 
 
 if __name__ == "__main__":
