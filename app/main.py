@@ -60,6 +60,13 @@ def execute_tool(tool_call):
 
         return load_skill_body(skill_name, skill_arguments)
 
+    elif name == "RunSkillScript":
+        return run_skill_script(
+            skill_name=arguments["skill_name"],
+            script_path=arguments["script_path"],
+            arguments=arguments.get("arguments", []),
+        )
+
     raise ValueError(f"Unknown tool: {name}")
 
 
@@ -220,6 +227,69 @@ def resolve_prompt(prompt):
     return resolved_prompts
 
 
+def run_skill_script(skill_name, script_path, arguments=None):
+    """
+    Execute a script bundled with a skill.
+
+    Scripts must be located inside the selected skill's directory.
+    """
+    skills_dir = Path(".claude/skills").resolve()
+    skill_dir = (skills_dir / skill_name).resolve()
+
+    # Validate the skill directory.
+    if not skill_dir.is_relative_to(skills_dir) or not skill_dir.is_dir():
+        return f"Error: Invalid or unknown skill: {skill_name}"
+
+    # Resolve the requested script relative to the skill directory.
+    script = (skill_dir / script_path).resolve()
+
+    # Prevent path traversal and symlinks escaping the skill directory.
+    if not script.is_relative_to(skill_dir):
+        return "Error: Script must be inside the skill directory."
+
+    if not script.is_file():
+        return f"Error: Script not found: {script_path}"
+
+    if not os.access(script, os.X_OK):
+        return (
+            f"Error: Script is not executable: {script_path}. "
+            f"Make it executable with chmod +x."
+        )
+
+    if arguments is None:
+        arguments = []
+
+    if not isinstance(arguments, list) or not all(
+        isinstance(arg, str) for arg in arguments
+    ):
+        return "Error: Script arguments must be a list of strings."
+
+    try:
+        result = subprocess.run(
+            [str(script), *arguments],
+            cwd=str(skill_dir),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+        output = result.stdout
+
+        if result.stderr:
+            output += result.stderr
+
+        if result.returncode != 0:
+            output += f"\nScript exited with code {result.returncode}"
+
+        return output or "(Script completed without output.)"
+
+    except subprocess.TimeoutExpired:
+        return "Error: Script execution timed out after 60 seconds."
+    except OSError as exc:
+        return f"Error executing script: {exc}"
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("-p", required=True)
@@ -304,6 +374,39 @@ def main():
                             "description": "Optional arguments for the skill",
                         },
                     },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "RunSkillScript",
+                "description": (
+                    "Execute a script bundled with a skill. "
+                    "Use this when the skill instructions require running one of "
+                    "the scripts included in that skill's directory."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "skill_name": {
+                            "type": "string",
+                            "description": "Name of the skill containing the script.",
+                        },
+                        "script_path": {
+                            "type": "string",
+                            "description": (
+                                "Path to the script relative to the skill directory, "
+                                "for example scripts/deploy.sh."
+                            ),
+                        },
+                        "arguments": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional command-line arguments for the script.",
+                        },
+                    },
+                    "required": ["skill_name", "script_path"],
                 },
             },
         },
