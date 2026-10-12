@@ -511,7 +511,7 @@ def main():
             break
 
         for tool_call in message.tool_calls:
-            result = execute_tool(tool_call)
+            result = execute_tool(tool_call, client, tools)
 
             messages.append(
                 {
