@@ -141,48 +141,60 @@ def load_skill_body(skill_name):
 
 def resolve_prompt(prompt):
     """
-    Resolve a slash command and substitute its arguments into the skill body.
+    Expand consecutive skill invocations at the beginning of a prompt.
 
-    Supported placeholders:
-        $ARGUMENTS    -> All arguments joined by spaces
-        $ARGUMENTS[0] -> First argument
-        $ARGUMENTS[1] -> Second argument
-        $0, $1, $2    -> Shorthand for positional arguments
+    Every expanded skill receives the same remaining argument text.
+    Expansion stops at the first token that isn't a valid skill.
     """
     if not prompt.startswith("/"):
         return prompt
 
-    command_parts = prompt[1:].split(maxsplit=1)
+    tokens = prompt.split()
+    expanded_skills = []
+    index = 0
 
-    if not command_parts:
-        return prompt
+    while index < len(tokens):
+        token = tokens[index]
 
-    skill_name = command_parts[0]
-    arguments = command_parts[1].split() if len(command_parts) > 1 else []
+        if not token.startswith("/") or token == "/":
+            break
 
-    skill_body = load_skill_body(skill_name)
+        skill_name = token[1:]
+        skill_body = load_skill_body(skill_name)
 
-    if skill_body is None:
-        return prompt
+        if skill_body is None:
+            break
 
-    for index, argument in enumerate(arguments):
-        skill_body = skill_body.replace(
-            f"$ARGUMENTS[{index}]",
-            argument,
-        )
+        expanded_skills.append(skill_body)
+        index += 1
 
-    skill_body = skill_body.replace(
-        "$ARGUMENTS",
-        " ".join(arguments),
-    )
+    if not expanded_skills:
+        return None
 
-    for index, argument in enumerate(arguments):
-        skill_body = skill_body.replace(
-            f"${index}",
-            argument,
-        )
+    arguments = " ".join(tokens[index:])
 
-    return skill_body
+    resolved_prompts = []
+
+    for skill_body in expanded_skills:
+        skill_arguments = arguments.split()
+
+        for arg_index, argument in enumerate(skill_arguments):
+            skill_body = skill_body.replace(
+                f"$ARGUMENTS[{arg_index}]",
+                argument,
+            )
+
+        skill_body = skill_body.replace("$ARGUMENTS", arguments)
+
+        for arg_index, argument in enumerate(skill_arguments):
+            skill_body = skill_body.replace(
+                f"${arg_index}",
+                argument,
+            )
+
+        resolved_prompts.append(skill_body)
+
+    return resolved_prompts
 
 
 def main():
