@@ -13,13 +13,13 @@ API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
 
 
-def execute_tool(tool_call: dict) -> None:
+def execute_tool(tool_call):
 
-    function = tool_call["function"]
+    function = tool_call.function
 
-    name = function["name"]
+    name = function.name
 
-    arguments = json.loads(function["arguments"])
+    arguments = json.loads(function.arguments)
 
     if name == "Read":
 
