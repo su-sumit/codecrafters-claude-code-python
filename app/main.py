@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 import sys
 import subprocess
+import yaml
 
+from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -51,6 +53,58 @@ def execute_tool(tool_call):
         return output
 
     raise ValueError(f"Unknown tool: {name}")
+
+
+def discover_skills():
+    skills_dir = Path(".claude/skills")
+    skills = []
+
+    if not skills_dir.is_dir():
+        return skills
+
+    for skill_file in sorted(skills_dir.glob("*/SKILL.md")):
+        content = skill_file.read_text()
+
+        if not content.startswith("---"):
+            continue
+
+        parts = content.split("---", 2)
+
+        if len(parts) < 3:
+            continue
+
+        try:
+            metadata = yaml.safe_load(parts[1])
+        except yaml.YAMLError:
+            continue
+
+        if not isinstance(metadata, dict):
+            continue
+
+        name = metadata.get("name")
+        description = metadata.get("description")
+
+        if name and description:
+            skills.append(
+                {
+                    "name": name,
+                    "description": description,
+                }
+            )
+
+    return skills
+
+
+def build_system_prompt(skills):
+    if not skills:
+        return ""
+
+    prompt = "You have access to the following skills:\n"
+
+    for skill in skills:
+        prompt += f"\n- {skill['name']}: {skill['description']}"
+
+    return prompt
 
 
 def main():
@@ -121,7 +175,27 @@ def main():
         },
     ]
 
-    messages = [{"role": "user", "content": args.p}]
+    skills = discover_skills()
+
+    system_prompt = build_system_prompt(skills)
+
+    messages = []
+
+    if system_prompt:
+
+        messages.append(
+            {
+                "role": "system",
+                "content": system_prompt,
+            }
+        )
+
+    messages.append(
+        {
+            "role": "user",
+            "content": args.p,
+        }
+    )
 
     while True:
         chat = client.chat.completions.create(
