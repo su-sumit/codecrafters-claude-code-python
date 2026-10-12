@@ -141,36 +141,46 @@ def load_skill_body(skill_name):
 
 def resolve_prompt(prompt):
     """
+    Resolve a slash command and substitute its arguments into the skill body.
 
-    Resolve a slash command to the body of the corresponding skill.
-
-    Examples:
-
-        /apple -> the body of the apple skill
-
-        /apple extra text -> the body of the apple skill
-
-        Explain Python -> unchanged
-
+    Supported placeholders:
+        $ARGUMENTS    -> All arguments joined by spaces
+        $ARGUMENTS[0] -> First argument
+        $ARGUMENTS[1] -> Second argument
+        $0, $1, $2    -> Shorthand for positional arguments
     """
-
     if not prompt.startswith("/"):
-
         return prompt
 
     command_parts = prompt[1:].split(maxsplit=1)
 
     if not command_parts:
-
         return prompt
 
     skill_name = command_parts[0]
+    arguments = command_parts[1].split() if len(command_parts) > 1 else []
 
     skill_body = load_skill_body(skill_name)
 
     if skill_body is None:
-
         return prompt
+
+    for index, argument in enumerate(arguments):
+        skill_body = skill_body.replace(
+            f"$ARGUMENTS[{index}]",
+            argument,
+        )
+
+    skill_body = skill_body.replace(
+        "$ARGUMENTS",
+        " ".join(arguments),
+    )
+
+    for index, argument in enumerate(arguments):
+        skill_body = skill_body.replace(
+            f"${index}",
+            argument,
+        )
 
     return skill_body
 
@@ -277,16 +287,13 @@ def main():
 
         message = chat.choices[0].message
 
-        # Add the assistant's response to the conversation history.
         messages.append(message)
 
-        # If there are no tool calls, the model has finished.
         if not message.tool_calls:
             if message.content:
                 print(message.content)
             break
 
-        # Execute each requested tool and send its result back.
         for tool_call in message.tool_calls:
             result = execute_tool(tool_call)
 
