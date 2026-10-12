@@ -14,24 +14,15 @@ BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v
 
 
 def execute_tool(tool_call):
-
     function = tool_call.function
-
     name = function.name
-
     arguments = json.loads(function.arguments)
 
     if name == "Read":
-
         file_path = arguments["file_path"]
+        return Path(file_path).read_text()
 
-        contents = Path(file_path).read_text()
-
-        print(contents, end="")
-
-    else:
-
-        raise ValueError(f"Unknown tool: {name}")
+    raise ValueError(f"Unknown tool: {name}")
 
 
 def main():
@@ -64,27 +55,36 @@ def main():
         }
     ]
 
-    chat = client.chat.completions.create(
-        model="anthropic/claude-haiku-4.5",
-        messages=[{"role": "user", "content": args.p}],
-        tools=tools,
-        max_tokens=5000,
-    )
+        messages = [{"role": "user", "content": args.p}]
 
-    if not chat.choices or len(chat.choices) == 0:
-        raise RuntimeError("no choices in response")
+    while True:
+        chat = client.chat.completions.create(
+            model="anthropic/claude-haiku-4.5",
+            messages=messages,
+            tools=tools,
+            max_tokens=5000,
+        )
 
-    message = chat.choices[0].message
+        message = chat.choices[0].message
 
-    if message.tool_calls:
+        # Add the assistant's response to the conversation history.
+        messages.append(message)
 
-        tool_call = message.tool_calls[0]
+        # If there are no tool calls, the model has finished.
+        if not message.tool_calls:
+            if message.content:
+                print(message.content)
+            break
 
-        execute_tool(tool_call)
+        # Execute each requested tool and send its result back.
+        for tool_call in message.tool_calls:
+            result = execute_tool(tool_call)
 
-    elif message.content:
-
-        print(message.content)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
 
 
 if __name__ == "__main__":
