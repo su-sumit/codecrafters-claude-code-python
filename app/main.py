@@ -74,14 +74,17 @@ def main():
     if not chat.choices or len(chat.choices) == 0:
         raise RuntimeError("no choices in response")
 
-    tool_call = chat.choices[0].message.tool_calls[0]
+    message = chat.choices[0].message
 
-    execute_tool(tool_call)
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-    print("Logs from your program will appear here!", file=sys.stderr)
+    if message.tool_calls:
 
-    # TODO: Uncomment the following line to pass the first stage
-    print(chat.choices[0].message.content)
+        tool_call = message.tool_calls[0]
+
+        execute_tool(tool_call)
+
+    elif message.content:
+
+        print(message.content)
 
 
 if __name__ == "__main__":
