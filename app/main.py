@@ -107,6 +107,74 @@ def build_system_prompt(skills):
     return prompt
 
 
+def load_skill_body(skill_name):
+    """
+
+    Load the instructions from a skill's SKILL.md file.
+
+    The YAML frontmatter is excluded. Only the body after
+
+    the closing --- delimiter is returned.
+
+    """
+
+    skill_path = Path(".claude") / "skills" / skill_name / "SKILL.md"
+
+    if not skill_path.is_file():
+
+        return None
+
+    content = skill_path.read_text(encoding="utf-8")
+
+    if not content.startswith("---"):
+
+        return None
+
+    parts = content.split("---", 2)
+
+    if len(parts) < 3:
+
+        return None
+
+    return parts[2].strip()
+
+
+def resolve_prompt(prompt):
+    """
+
+    Resolve a slash command to the body of the corresponding skill.
+
+    Examples:
+
+        /apple -> the body of the apple skill
+
+        /apple extra text -> the body of the apple skill
+
+        Explain Python -> unchanged
+
+    """
+
+    if not prompt.startswith("/"):
+
+        return prompt
+
+    command_parts = prompt[1:].split(maxsplit=1)
+
+    if not command_parts:
+
+        return prompt
+
+    skill_name = command_parts[0]
+
+    skill_body = load_skill_body(skill_name)
+
+    if skill_body is None:
+
+        return prompt
+
+    return skill_body
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("-p", required=True)
@@ -179,6 +247,8 @@ def main():
 
     system_prompt = build_system_prompt(skills)
 
+    user_prompt = resolve_prompt(args.p)
+
     messages = []
 
     if system_prompt:
@@ -193,7 +263,7 @@ def main():
     messages.append(
         {
             "role": "user",
-            "content": args.p,
+            "content": user_prompt,
         }
     )
 
