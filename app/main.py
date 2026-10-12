@@ -16,7 +16,7 @@ API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL", default="https://openrouter.ai/api/v1")
 
 
-def execute_tool(tool_call):
+def execute_tool(tool_call, client, tools):
     function = tool_call.function
     name = function.name
     arguments = json.loads(function.arguments)
@@ -55,11 +55,37 @@ def execute_tool(tool_call):
     elif name == "Skill":
         skill_name = arguments["name"]
         skill_arguments = arguments.get("args", "")
+        skill = next(
+            (skill for skill in discover_skills() if skill["name"] == skill_name),
+            None,
+        )
+
+        if skill is None:
+            return f"Error: Skill '{skill_name}' not found."
 
         body = load_skill_body(skill_name)
+
         if body.startswith("Error:"):
             return body
-        return substitute_skill_arguments(body, skill_arguments)
+
+        body = substitute_skill_arguments(body, skill_arguments)
+
+        if skill.get("context") == "fork":
+            subagent_messages = [
+                {
+                    "role": "user",
+                    "content": body,
+                }
+            ]
+
+            answer = run_agent(client, subagent_messages, tools)
+
+            return (
+                f"Skill {skill_name} ran in a separate context "
+                f"and returned: {answer}"
+            )
+
+        return body
 
     elif name == "RunSkillScript":
         return run_skill_script(
@@ -99,12 +125,14 @@ def discover_skills():
 
         name = metadata.get("name")
         description = metadata.get("description")
+        context = metadata.get("context")
 
         if name and description:
             skills.append(
                 {
                     "name": name,
                     "description": description,
+                    "context": context,
                 }
             )
 
@@ -280,6 +308,30 @@ def run_skill_script(skill_name, script_path, arguments=None):
         return "Error: Script execution timed out after 60 seconds."
     except OSError as exc:
         return f"Error executing script: {exc}"
+
+
+def run_agent(client, messages, tools):
+    while True:
+        chat = client.chat.completions.create(
+            model="anthropic/claude-haiku-4.5",
+            messages=messages,
+            tools=tools,
+            max_tokens=5000,
+        )
+
+        message = chat.choices[0].message
+        messages.append(message)
+        if not message.tool_calls:
+            return message.content or ""
+        for tool_call in message.tool_calls:
+            result = execute_tool(tool_call, client, tools)
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result,
+                }
+            )
 
 
 def main():
